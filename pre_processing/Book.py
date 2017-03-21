@@ -12,18 +12,18 @@ class Book(object):
     english_stopwords = stopwords.words('english')
     nltk.download("stopwords")
 
-    def __init__(self, _id,  subdir, pages):
+    def __init__(self, _id,  subdir, pages, numbers_only=False):
         self.id = _id
         self.meta = {}
         print("starting book {}".format(self.id))
         self.pages= pages
         self.word_list = []
         self.dir = subdir + os.sep
-        self.word_list = self.create_raw_word_list()
+        self.word_list = self.create_raw_word_list(numbers_only)
         self.word_list = self.remove_stop_words(self.word_list)
         print("Finished preprocessing on book{}".format(_id))
 
-    def create_raw_word_list(self):
+    def create_raw_word_list(self, numbers_only=False):
         word_list = []
         for page in self.pages:
             with open(self.dir + page, 'r') as f:
@@ -37,11 +37,33 @@ class Book(object):
                 self.meta["title"] = title_node.text
                 published_node = soup.find(id="published")
                 self.meta["published"] = published_node.text
+                period_node = soup.find(id="period")
+                self.meta["period"] = period_node.text
+            elif numbers_only:
+                for top_node in soup.findAll("div", class_="ocrx_block")[1:]:
+                    for node in top_node.findAll('span'):
+                        for word in node.text.split():
+                            m = re.search('(\d+)', word)
+                            if m:
+                                for c in m.groups():
+                                    if c :
+                                        word_list.append(c)
+
+
             else:
                 for node in soup.findAll('span'):
                     for word in node.text.split():
-                        if re.search('[a-zA-Z]', word):
-                            word_list.append(word.lower())
+                        saved_word = ""
+                        m = re.search('(\w+-?)', word)
+                        if m:
+                            for mword in m.groups():
+                                if mword[-1] == "_" or mword[-1] == "-":
+                                    saved_word = mword
+                                elif mword == "," or mword =='.':
+                                    saved_word = ""
+                                else:
+                                    word_list.append(saved_word.lower() + mword.lower())
+                                    saved_word = ""
         return word_list
 
     def remove_stop_words(self, text_list):
